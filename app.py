@@ -92,22 +92,84 @@ st.markdown("""
         .stSpinner {
             font-style: italic;
         }
-        
-
     </style>
 """, unsafe_allow_html=True)
 
+# ---------------
+# Placeholder implementations for missing modules
+# Replace these with your actual implementations
 
-# Your Existing Code Starts Here
-# -------------------------------
+def parse_medical_report(text):
+    """
+    Parses medical test results from raw text.
+    Returns list of dicts like:
+    [
+        {'test_name': 'Hemoglobin', 'value': 13.2, 'unit': 'g/dL', 'normal_range': (12.0, 16.0)},
+        ...
+    ]
+    """
+    # Example dummy parsing logic for demonstration:
+    results = []
+    # Regex pattern to match simple test lines: TestName: value unit (normal_low - normal_high)
+    pattern = re.compile(r"(\w+(?: \w+)*)\s*:\s*([\d.]+)\s*(\w+)?\s*\(?([\d.]+)-([\d.]+)\)?", re.I)
+    for match in pattern.finditer(text):
+        test_name = match.group(1).strip()
+        value = float(match.group(2))
+        unit = match.group(3) if match.group(3) else ""
+        normal_low = float(match.group(4))
+        normal_high = float(match.group(5))
+        results.append({
+            'test_name': test_name,
+            'value': value,
+            'unit': unit,
+            'normal_range': (normal_low, normal_high)
+        })
+    return results
 
-# Placeholder imports - make sure these exist and work
-from parser import parse_medical_report
-from analysis import categorize_value
-from ai_utils import generate_explanation_for_test
-from preprocessing import preprocess_image
-from ocr_utils import extract_text_from_image
+def categorize_value(value, normal_range):
+    low, high = normal_range
+    if value < low:
+        return "Low"
+    elif value > high:
+        return "High"
+    else:
+        return "Normal"
 
+def generate_explanation_for_test(model, test_name, value, unit, normal_range):
+    """
+    Uses the AI model to generate an explanation for a single test result.
+    Here we simulate with a placeholder string.
+    """
+    low, high = normal_range
+    if value < low:
+        status = "below normal range"
+    elif value > high:
+        status = "above normal range"
+    else:
+        status = "within normal limits"
+    return f"The {test_name} result is {value} {unit}, which is {status}."
+
+def preprocess_image(image_path):
+    """
+    Preprocesses the image to improve OCR accuracy.
+    This is a placeholder that just opens the image.
+    """
+    image = Image.open(image_path)
+    # Example: convert to grayscale (improve OCR)
+    return image.convert("L")
+
+def extract_text_from_image(image):
+    """
+    Extracts text from an image using OCR.
+    Placeholder: returns dummy text.
+    You can replace this with pytesseract or Google Vision OCR code.
+    """
+    # If you want to use pytesseract, uncomment below after installing pytesseract
+    # import pytesseract
+    # return pytesseract.image_to_string(image)
+    return "Hemoglobin: 13.2 g/dL (12.0-16.0)\nWBC: 7000 /µL (4000-11000)"
+
+# ---------------
 # Load environment variables
 load_dotenv()
 
@@ -195,10 +257,6 @@ def extract_text_from_pdf(pdf_file):
         return ""
 
 def generate_pdf_report(text):
-    from fpdf import FPDF
-    import io
-    import datetime
-
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 16)
@@ -234,10 +292,11 @@ def generate_pdf_report(text):
 
     pdf.ln(5)
     pdf.set_font("Arial", 'I', 10)
+    import datetime
     gen_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     pdf.cell(0, 10, f'Report generated on: {gen_time}', ln=True, align='R')
 
-    pdf_bytes = pdf.output(dest='S')
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
     pdf_buffer = io.BytesIO(pdf_bytes)
     pdf_buffer.seek(0)
     return pdf_buffer
@@ -269,100 +328,72 @@ def display_results_table(text):
 def display_explanations(test_results, model):
     st.subheader("🧠 Explanations by AI")
     for result in test_results:
-        with st.expander(f"{result['test_name']} Explanation"):
-            explanation = generate_explanation_for_test(model,
-                                                       result['test_name'],
-                                                       result['value'],
-                                                       result['unit'],
-                                                       result['normal_range'])
-            st.write(f"**Value:** {result['value']} {result['unit']}")
-            st.write(f"**Normal Range:** {result['normal_range'][0]} - {result['normal_range'][1]} {result['unit']}")
-            st.markdown("**Explanation:**")
+        with st.expander(f"Explain {result['test_name']}"):
+            explanation = generate_explanation_for_test(
+                model,
+                result['test_name'],
+                result['value'],
+                result['unit'],
+                result['normal_range']
+            )
             st.write(explanation)
 
-def main():
-    st.title("🧬 AI-driven Medical Report Analyzer")
-    st.write("Upload a medical report (Image or PDF) for analysis.")
+# -------- Main App --------
 
-    file_type = st.radio("Select file type:", ("Image", "PDF"))
+st.title("💉 Medical Lab Report Analysis & Personalized Recommendations")
 
-    if file_type == "Image":
-        uploaded_file = st.file_uploader("Upload a medical report image", type=["jpg", "jpeg", "png"])
-        if uploaded_file is not None:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
-                tmp_file.write(uploaded_file.getvalue())
-                tmp_file_path = tmp_file.name
+uploaded_file = st.file_uploader(
+    "Upload your medical report (PDF, Image, or Text file)",
+    type=["pdf", "png", "jpg", "jpeg", "txt"]
+)
 
-            try:
-                preprocessed_image = preprocess_image(tmp_file_path)
-                st.image(preprocessed_image, caption="Preprocessed Medical Report", use_column_width=True)
+if uploaded_file:
+    file_type = uploaded_file.type
+    content_type = None
+    report_text = ""
 
-                if st.button("🔍 Analyze Image Report"):
-                    with st.spinner("🔎 Extracting text from image..."):
-                        extracted_text = extract_text_from_image(preprocessed_image)
-                        st.write("Debug: Extracted text from image:")
-                        st.write(extracted_text if extracted_text else "No text extracted.")
+    if file_type == "application/pdf":
+        content_type = "pdf"
+        report_text = extract_text_from_pdf(uploaded_file)
+        if not report_text.strip():
+            st.warning("No text extracted from PDF. Try uploading an image or text file.")
+    elif file_type.startswith("image/"):
+        content_type = "image"
+        # Save the uploaded image temporarily
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(uploaded_file.read())
+            tmp_path = tmp.name
 
-                    with st.spinner("🤖 Analyzing medical report..."):
-                        analysis = analyze_medical_report(extracted_text, "text")
-                        st.subheader("📄 AI Summary:")
-                        st.write(analysis)
-
-                        test_results = display_results_table(extracted_text)
-                        if test_results:
-                            display_explanations(test_results, model)
-
-                        pdf_buffer = generate_pdf_report(analysis)
-                        st.download_button(
-                            label="⬇️ Download AI Summary Report (PDF)",
-                            data=pdf_buffer,
-                            file_name="AI_Medical_Report_Analysis.pdf",
-                            mime="application/pdf"
-                        )
-
-            finally:
-                os.unlink(tmp_file_path)
-
+        image = preprocess_image(tmp_path)
+        st.image(image, caption="Uploaded Image", use_column_width=True)
+        report_text = extract_text_from_image(image)
+        os.remove(tmp_path)
+    elif file_type == "text/plain":
+        content_type = "text"
+        report_text = uploaded_file.read().decode("utf-8")
+        st.text_area("Medical Report Text", value=report_text, height=250)
     else:
-        uploaded_file = st.file_uploader("Upload a medical report PDF", type=["pdf"])
-        if uploaded_file is not None:
-            st.success("PDF uploaded successfully.")
+        st.error("Unsupported file type. Please upload PDF, Image, or Text file.")
 
-            if st.button("🔍 Analyze PDF Report"):
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
-                    tmp_file_path = tmp_file.name
+    if report_text.strip():
+        analysis_text = analyze_medical_report(report_text, content_type)
+        st.subheader("📝 AI-Generated Analysis & Recommendations")
+        st.write(analysis_text)
 
-                try:
-                    with open(tmp_file_path, 'rb') as pdf_file:
-                        pdf_text = extract_text_from_pdf(pdf_file)
-                        st.write("Debug: Extracted text from PDF:")
-                        st.write(pdf_text if pdf_text else "No text extracted.")
+        # Display extracted table + explanations
+        test_results = display_results_table(report_text)
+        if test_results:
+            display_explanations(test_results, model)
 
-                    with st.spinner("🤖 Analyzing medical report..."):
-                        analysis = analyze_medical_report(pdf_text, "text")
-                        st.subheader("📄 AI Summary:")
-                        st.write(analysis)
+        # Offer PDF download
+        pdf_buffer = generate_pdf_report(analysis_text)
+        st.download_button(
+            label="📥 Download AI Analysis as PDF",
+            data=pdf_buffer,
+            file_name="medical_report_analysis.pdf",
+            mime="application/pdf"
+        )
 
-                        test_results = display_results_table(pdf_text)
-                        if test_results:
-                            display_explanations(test_results, model)
+else:
+    st.info("Please upload a medical report to get started.")
 
-                        pdf_buffer = generate_pdf_report(analysis)
-                        st.download_button(
-                            label="⬇️ Download AI Summary Report (PDF)",
-                            data=pdf_buffer,
-                            file_name="AI_Medical_Report_Analysis.pdf",
-                            mime="application/pdf"
-                        )
-
-                finally:
-                    os.unlink(tmp_file_path)
-
-    st.subheader("Feedback")
-    feedback = st.text_area("Report any issues or suggestions:")
-    if st.button("Submit Feedback"):
-        st.success("Thank you for your feedback!")
-
-if __name__ == "__main__":
-    main()
