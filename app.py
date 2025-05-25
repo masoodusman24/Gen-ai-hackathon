@@ -1,80 +1,51 @@
 import streamlit as st
-import google.generativeai as genai
-from PIL import Image
-import PyPDF2
+import easyocr
 import tempfile
 import os
-from google.api_core import exceptions
-from dotenv import load_dotenv
-import time
-from fpdf import FPDF
-import io
+from PIL import Image
+import google.generativeai as genai
 import pandas as pd
-import re
+import time
 
-# Custom CSS
+# Set page config
+st.set_page_config(page_title="Lab Report AI Assistant", layout="centered")
+
+# Enhanced Custom CSS with Animation & Modern UI
 st.markdown("""
     <style>
-        /* Global text color and background */
+        .stApp {
+            animation: fadeIn 1s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         body, .stApp {
             background-color: #f2f6fc;
-            color: #000000 !important;  /* Force black text */
+            color: #000000 !important;
             font-family: 'Segoe UI', sans-serif;
         }
 
-        /* Headings */
-        h1, h2, h3, h4, h5, h6 {
-            color: #000000 !important;
-        }
-
-        /* Paragraphs and spans */
-        p, span, div {
-            color: #000000 !important;
-        }
-
-        /* Streamlit elements */
-        .stMarkdown, .stText, .stDataFrame, .stExpanderContent {
+        h1, h2, h3, h4, h5, h6, p, span, div {
             color: #000000 !important;
         }
 
         .stButton > button {
             background-color: #5c6bc0;
             color: white;
-            border-radius: 8px;
-            padding: 0.5em 1em;
+            border-radius: 10px;
+            padding: 0.6em 1.2em;
             font-weight: bold;
-            transition: background-color 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 10px rgba(92, 107, 192, 0.2);
+            transition: all 0.3s ease;
         }
 
         .stButton > button:hover {
             background-color: #3949ab;
-        }
-
-        .stRadio > div {
-            padding: 10px 0px;
-        }
-
-        .css-1v0mbdj p {
-            color: #000000 !important;
-        }
-
-        .stDataFrame {
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            color: #000000 !important;
-        }
-
-        .stExpander {
-            border: 1px solid #dcdcdc;
-            border-radius: 10px;
-            background-color: #ffffff;
-            color: #000000 !important;
-        }
-
-        .stTextArea, .stTextInput {
-            border-radius: 8px !important;
-            color: #000000 !important;
+            transform: scale(1.02);
         }
 
         .stDownloadButton > button {
@@ -82,287 +53,103 @@ st.markdown("""
             color: white;
             font-weight: bold;
             border-radius: 20px;
+            padding: 0.5em 1em;
+            box-shadow: 0 3px 6px rgba(0, 150, 136, 0.3);
+            transition: background-color 0.3s ease, transform 0.2s ease;
         }
 
         .stDownloadButton > button:hover {
             background-color: #00897b;
-            font-color: white;
+            transform: scale(1.03);
+        }
+
+        .stTextInput input, .stTextArea textarea {
+            border-radius: 8px;
+            padding: 0.4em 0.6em;
+            border: 1px solid #ccc;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .stTextInput input:focus, .stTextArea textarea:focus {
+            box-shadow: 0 0 8px rgba(92, 107, 192, 0.4);
+        }
+
+        .stDataFrame {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .stExpander {
+            border: 1px solid #dcdcdc;
+            border-radius: 12px;
+            background-color: #ffffff;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
 
         .stSpinner {
             font-style: italic;
+            color: #3949ab !important;
         }
-        
 
+        .stRadio > div {
+            padding: 10px 0;
+        }
     </style>
 """, unsafe_allow_html=True)
 
+# Title
+st.title("🧠 AI-Powered Medical Lab Report Assistant")
 
-# Your Existing Code Starts Here
-# -------------------------------
+# Upload
+uploaded_file = st.file_uploader("📤 Upload your medical lab report (Image/PDF)", type=["png", "jpg", "jpeg", "pdf"])
 
-# Placeholder imports - make sure these exist and work
-from parser import parse_medical_report
-from analysis import categorize_value
-from ai_utils import generate_explanation_for_test
-from preprocessing import preprocess_image
-from ocr_utils import extract_text_from_image
+# OCR Function
+def extract_text_from_image(file):
+    reader = easyocr.Reader(['en'])
+    result = reader.readtext(file)
+    extracted_text = " ".join([entry[1] for entry in result])
+    return extracted_text
 
-# Load environment variables
-load_dotenv()
+# Gemini Configuration
+genai.configure(api_key="YOUR_GEMINI_API_KEY")
+model = genai.GenerativeModel("gemini-pro")
 
-api_key = os.getenv("GEMINI_API_KEY")
+# Process
+if uploaded_file:
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file.write(uploaded_file.read())
+        temp_path = temp_file.name
 
-if not api_key:
-    st.error("Gemini API key not found. Please set the GEMINI_API_KEY environment variable.")
-    st.stop()
+    file_extension = os.path.splitext(uploaded_file.name)[1].lower()
 
-genai.configure(api_key=api_key)
-model = genai.GenerativeModel('gemini-1.5-flash')
+    with st.spinner("🔍 Extracting text from your report..."):
+        if file_extension == ".pdf":
+            extracted_text = "PDF OCR not implemented in this version"
+        else:
+            extracted_text = extract_text_from_image(temp_path)
 
-MAX_RETRIES = 3
-RETRY_DELAY = 2
+    with st.expander("📄 Extracted Text"):
+        st.write(extracted_text)
 
-def analyze_medical_report(content, content_type):
-    prompt = """
-Analyze this medical report concisely. Provide:
-1. Key findings and diagnoses (e.g., abnormal test results).
-2. Specific dietary recommendations:
-   - Foods to eat to address any abnormalities.
-   - Foods to avoid to prevent worsening conditions.
-3. General health actions (e.g., exercise, follow-up tests, lifestyle changes).
-4. Any critical warnings or urgent actions needed.
-If the report is unclear or empty, provide a fallback analysis with general health advice.
-"""
+    # AI Analysis
+    if extracted_text:
+        st.subheader("💡 AI Analysis & Explanation")
 
-    for attempt in range(MAX_RETRIES):
-        try:
-            if content_type == "image":
-                response = model.generate_content([prompt, content])
-            else:
-                response = model.generate_content(f"{prompt}\n\n{content}")
-            
-            if not response.text.strip():
-                st.warning("AI returned empty analysis.")
-                return fallback_analysis(content, content_type)
-            return response.text
-        except exceptions.GoogleAPIError as e:
-            if attempt < MAX_RETRIES - 1:
-                st.warning(f"API error. Retrying in {RETRY_DELAY} seconds... (Attempt {attempt + 1}/{MAX_RETRIES})")
-                time.sleep(RETRY_DELAY)
-            else:
-                st.error(f"Failed to analyze the report after {MAX_RETRIES} attempts. Error: {str(e)}")
-                return fallback_analysis(content, content_type)
+        with st.spinner("🧠 Analyzing with AI..."):
+            prompt = f"""
+            You are a medical AI assistant. Analyze the following lab report text. 
+            Extract all key metrics, test results, and their normal ranges (if possible). 
+            Explain any abnormal values clearly and concisely. Provide health advice if needed.
 
-def fallback_analysis(content, content_type):
-    st.warning("Using fallback analysis due to API issues.")
-    if content_type == "image":
-        return """
-Fallback Analysis:
-- Unable to analyze the image due to API issues.
-- Recommendations:
-  - Consult a medical professional for accurate interpretation.
-  - General Diet: Focus on a balanced diet with vegetables, lean proteins, and whole grains.
-  - Avoid processed foods, sugary drinks, and excessive saturated fats.
-  - Actions: Schedule a follow-up with a healthcare provider.
-"""
-    else:
-        word_count = len(content.split())
-        return f"""
-Fallback Analysis:
-- Document Type: Text-based medical report
-- Word Count: Approximately {word_count} words
-- Content: The document appears to contain medical information, but detailed analysis is unavailable.
-- Recommendations:
-  - Diet: Include fiber-rich foods (oats, vegetables), lean proteins (chicken, fish), and healthy fats (avocado, nuts).
-  - Avoid: Sugary foods, trans fats, and excessive alcohol.
-  - Actions: Consult a healthcare professional and consider regular exercise (30 min/day).
-"""
-
-def extract_text_from_pdf(pdf_file):
-    try:
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        text = ""
-        for page in pdf_reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
-        if not text.strip():
-            st.warning("No text extracted from PDF. It may contain scanned images.")
-        return text
-    except Exception as e:
-        st.error(f"Error extracting text from PDF: {str(e)}")
-        return ""
-
-def generate_pdf_report(text):
-    from fpdf import FPDF
-    import io
-    import datetime
-
-    class PDF(FPDF):
-        def header(self):
-            self.set_font('Arial', 'B', 16)
-            self.cell(0, 10, 'AI Medical Report Analysis', border=False, ln=True, align='C')
-            self.ln(5)
-
-        def footer(self):
-            self.set_y(-15)
-            self.set_font('Arial', 'I', 8)
-            self.set_text_color(128)
-            self.cell(0, 10, f'Page {self.page_no()}', align='C')
-
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, "Summary of Medical Report", ln=True, align='L')
-    pdf.ln(4)
-    pdf.set_draw_color(0, 0, 0)
-    pdf.set_line_width(0.5)
-    pdf.line(10, pdf.get_y(), pdf.w - 10, pdf.get_y())
-    pdf.ln(6)
-
-    pdf.set_font("Arial", size=12)
-    cleaned_text = text.replace('\u200b', '').strip()
-    paragraphs = cleaned_text.split('\n')
-    for para in paragraphs:
-        para = para.strip()
-        if para:
-            pdf.multi_cell(0, 10, f"    {para}")
-            pdf.ln(2)
-
-    pdf.ln(5)
-    pdf.set_font("Arial", 'I', 10)
-    gen_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    pdf.cell(0, 10, f'Report generated on: {gen_time}', ln=True, align='R')
-
-    pdf_bytes = pdf.output(dest='S')
-    pdf_buffer = io.BytesIO(pdf_bytes)
-    pdf_buffer.seek(0)
-    return pdf_buffer
-
-def display_results_table(text):
-    test_results = parse_medical_report(text)
-
-    if not test_results:
-        st.warning("No test results were parsed from the report.")
-        return []
-
-    table_data = []
-    for result in test_results:
-        category = categorize_value(result['value'], result['normal_range'])
-        ref_range = f"{result['normal_range'][0]} - {result['normal_range'][1]} {result['unit']}"
-        table_data.append({
-            "Test Name": result['test_name'],
-            "Value": f"{result['value']} {result['unit']}",
-            "Category": category,
-            "Reference Range": ref_range
-        })
-
-    df = pd.DataFrame(table_data)
-    st.subheader("📊 Extracted Test Results")
-    st.dataframe(df, use_container_width=True)
-
-    return test_results
-
-def display_explanations(test_results, model):
-    st.subheader("🧠 Explanations by AI")
-    for result in test_results:
-        with st.expander(f"{result['test_name']} Explanation"):
-            explanation = generate_explanation_for_test(model,
-                                                       result['test_name'],
-                                                       result['value'],
-                                                       result['unit'],
-                                                       result['normal_range'])
-            st.write(f"**Value:** {result['value']} {result['unit']}")
-            st.write(f"**Normal Range:** {result['normal_range'][0]} - {result['normal_range'][1]} {result['unit']}")
-            st.markdown("**Explanation:**")
-            st.write(explanation)
-
-def main():
-    st.title("🧬 AI-driven Medical Report Analyzer")
-    st.write("Upload a medical report (Image or PDF) for analysis.")
-
-    file_type = st.radio("Select file type:", ("Image", "PDF"))
-
-    if file_type == "Image":
-        uploaded_file = st.file_uploader("Upload a medical report image", type=["jpg", "jpeg", "png"])
-        if uploaded_file is not None:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
-                tmp_file.write(uploaded_file.getvalue())
-                tmp_file_path = tmp_file.name
-
+            Lab Report Text:
+            {extracted_text}
+            """
             try:
-                preprocessed_image = preprocess_image(tmp_file_path)
-                st.image(preprocessed_image, caption="Preprocessed Medical Report", use_column_width=True)
-
-                if st.button("🔍 Analyze Image Report"):
-                    with st.spinner("🔎 Extracting text from image..."):
-                        extracted_text = extract_text_from_image(preprocessed_image)
-                        st.write("Debug: Extracted text from image:")
-                        st.write(extracted_text if extracted_text else "No text extracted.")
-
-                    with st.spinner("🤖 Analyzing medical report..."):
-                        analysis = analyze_medical_report(extracted_text, "text")
-                        st.subheader("📄 AI Summary:")
-                        st.write(analysis)
-
-                        test_results = display_results_table(extracted_text)
-                        if test_results:
-                            display_explanations(test_results, model)
-
-                        pdf_buffer = generate_pdf_report(analysis)
-                        st.download_button(
-                            label="⬇️ Download AI Summary Report (PDF)",
-                            data=pdf_buffer,
-                            file_name="AI_Medical_Report_Analysis.pdf",
-                            mime="application/pdf"
-                        )
-
-            finally:
-                os.unlink(tmp_file_path)
-
-    else:
-        uploaded_file = st.file_uploader("Upload a medical report PDF", type=["pdf"])
-        if uploaded_file is not None:
-            st.success("PDF uploaded successfully.")
-
-            if st.button("🔍 Analyze PDF Report"):
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
-                    tmp_file_path = tmp_file.name
-
-                try:
-                    with open(tmp_file_path, 'rb') as pdf_file:
-                        pdf_text = extract_text_from_pdf(pdf_file)
-                        st.write("Debug: Extracted text from PDF:")
-                        st.write(pdf_text if pdf_text else "No text extracted.")
-
-                    with st.spinner("🤖 Analyzing medical report..."):
-                        analysis = analyze_medical_report(pdf_text, "text")
-                        st.subheader("📄 AI Summary:")
-                        st.write(analysis)
-
-                        test_results = display_results_table(pdf_text)
-                        if test_results:
-                            display_explanations(test_results, model)
-
-                        pdf_buffer = generate_pdf_report(analysis)
-                        st.download_button(
-                            label="⬇️ Download AI Summary Report (PDF)",
-                            data=pdf_buffer,
-                            file_name="AI_Medical_Report_Analysis.pdf",
-                            mime="application/pdf"
-                        )
-
-                finally:
-                    os.unlink(tmp_file_path)
-
-    st.subheader("Feedback")
-    feedback = st.text_area("Report any issues or suggestions:")
-    if st.button("Submit Feedback"):
-        st.success("Thank you for your feedback!")
-
-if __name__ == "__main__":
-    main()
+                response = model.generate_content(prompt)
+                explanation = response.text
+                st.success("✅ Analysis complete!")
+                st.markdown(explanation)
+            except Exception as e:
+                st.error(f"Error from Gemini API: {e}")
