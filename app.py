@@ -12,10 +12,7 @@ import io
 import pandas as pd
 import re
 
-# Optional: Uncomment and install pytesseract if you want OCR from images
-# import pytesseract
-
-# Custom CSS for UI
+# Custom CSS
 st.markdown("""
     <style>
         /* Global text color and background */
@@ -24,7 +21,22 @@ st.markdown("""
             color: #000000 !important;  /* Force black text */
             font-family: 'Segoe UI', sans-serif;
         }
-        /* Other CSS styles... */
+
+        /* Headings */
+        h1, h2, h3, h4, h5, h6 {
+            color: #000000 !important;
+        }
+
+        /* Paragraphs and spans */
+        p, span, div {
+            color: #000000 !important;
+        }
+
+        /* Streamlit elements */
+        .stMarkdown, .stText, .stDataFrame, .stExpanderContent {
+            color: #000000 !important;
+        }
+
         .stButton > button {
             background-color: #5c6bc0;
             color: white;
@@ -33,23 +45,72 @@ st.markdown("""
             font-weight: bold;
             transition: background-color 0.3s ease;
         }
+
         .stButton > button:hover {
             background-color: #3949ab;
         }
-        /* Add rest of your CSS here as needed */
+
+        .stRadio > div {
+            padding: 10px 0px;
+        }
+
+        .css-1v0mbdj p {
+            color: #000000 !important;
+        }
+
+        .stDataFrame {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            color: #000000 !important;
+        }
+
+        .stExpander {
+            border: 1px solid #dcdcdc;
+            border-radius: 10px;
+            background-color: #ffffff;
+            color: #000000 !important;
+        }
+
+        .stTextArea, .stTextInput {
+            border-radius: 8px !important;
+            color: #000000 !important;
+        }
+
+        .stDownloadButton > button {
+            background-color: #26a69a;
+            color: white;
+            font-weight: bold;
+            border-radius: 20px;
+        }
+
+        .stDownloadButton > button:hover {
+            background-color: #00897b;
+            font-color: white;
+        }
+
+        .stSpinner {
+            font-style: italic;
+        }
     </style>
 """, unsafe_allow_html=True)
 
-# -----------------------
-# Helper functions
+# ---------------
+# Placeholder implementations for missing modules
+# Replace these with your actual implementations
 
 def parse_medical_report(text):
     """
     Parses medical test results from raw text.
     Returns list of dicts like:
-    [{'test_name': 'Hemoglobin', 'value': 13.2, 'unit': 'g/dL', 'normal_range': (12.0, 16.0)}, ...]
+    [
+        {'test_name': 'Hemoglobin', 'value': 13.2, 'unit': 'g/dL', 'normal_range': (12.0, 16.0)},
+        ...
+    ]
     """
+    # Example dummy parsing logic for demonstration:
     results = []
+    # Regex pattern to match simple test lines: TestName: value unit (normal_low - normal_high)
     pattern = re.compile(r"(\w+(?: \w+)*)\s*:\s*([\d.]+)\s*(\w+)?\s*\(?([\d.]+)-([\d.]+)\)?", re.I)
     for match in pattern.finditer(text):
         test_name = match.group(1).strip()
@@ -76,7 +137,8 @@ def categorize_value(value, normal_range):
 
 def generate_explanation_for_test(model, test_name, value, unit, normal_range):
     """
-    Generates explanation for test result using AI or placeholder.
+    Uses the AI model to generate an explanation for a single test result.
+    Here we simulate with a placeholder string.
     """
     low, high = normal_range
     if value < low:
@@ -85,46 +147,45 @@ def generate_explanation_for_test(model, test_name, value, unit, normal_range):
         status = "above normal range"
     else:
         status = "within normal limits"
-    # You can enhance this by calling the AI model if desired.
     return f"The {test_name} result is {value} {unit}, which is {status}."
 
 def preprocess_image(image_path):
     """
-    Preprocess image for OCR. Converts to grayscale for better OCR results.
+    Preprocesses the image to improve OCR accuracy.
+    This is a placeholder that just opens the image.
     """
     image = Image.open(image_path)
+    # Example: convert to grayscale (improve OCR)
     return image.convert("L")
 
 def extract_text_from_image(image):
     """
-    Extract text from image using OCR.
-    Uncomment pytesseract import and install pytesseract to enable real OCR.
+    Extracts text from an image using OCR.
+    Placeholder: returns dummy text.
+    You can replace this with pytesseract or Google Vision OCR code.
     """
-    # Uncomment below if pytesseract is installed and imported
+    # If you want to use pytesseract, uncomment below after installing pytesseract
+    # import pytesseract
     # return pytesseract.image_to_string(image)
-
-    # Placeholder example text
     return "Hemoglobin: 13.2 g/dL (12.0-16.0)\nWBC: 7000 /µL (4000-11000)"
 
-def extract_text_from_pdf(pdf_file):
-    try:
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        text = ""
-        for page in pdf_reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
-        if not text.strip():
-            st.warning("No text extracted from PDF. It may contain scanned images.")
-        return text
-    except Exception as e:
-        st.error(f"Error extracting text from PDF: {str(e)}")
-        return ""
+# ---------------
+# Load environment variables
+load_dotenv()
+
+api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    st.error("Gemini API key not found. Please set the GEMINI_API_KEY environment variable.")
+    st.stop()
+
+genai.configure(api_key=api_key)
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+MAX_RETRIES = 3
+RETRY_DELAY = 2
 
 def analyze_medical_report(content, content_type):
-    """
-    Calls the Google Gemini AI to analyze medical report text or image content.
-    """
     prompt = """
 Analyze this medical report concisely. Provide:
 1. Key findings and diagnoses (e.g., abnormal test results).
@@ -136,32 +197,26 @@ Analyze this medical report concisely. Provide:
 If the report is unclear or empty, provide a fallback analysis with general health advice.
 """
 
-    MAX_RETRIES = 3
-    RETRY_DELAY = 2
-
     for attempt in range(MAX_RETRIES):
         try:
             if content_type == "image":
-                # For image, send prompt + content as list
                 response = model.generate_content([prompt, content])
             else:
                 response = model.generate_content(f"{prompt}\n\n{content}")
+            
             if not response.text.strip():
                 st.warning("AI returned empty analysis.")
                 return fallback_analysis(content, content_type)
             return response.text
         except exceptions.GoogleAPIError as e:
             if attempt < MAX_RETRIES - 1:
-                st.warning(f"API error. Retrying in {RETRY_DELAY} seconds... (Attempt {attempt+1}/{MAX_RETRIES})")
+                st.warning(f"API error. Retrying in {RETRY_DELAY} seconds... (Attempt {attempt + 1}/{MAX_RETRIES})")
                 time.sleep(RETRY_DELAY)
             else:
                 st.error(f"Failed to analyze the report after {MAX_RETRIES} attempts. Error: {str(e)}")
                 return fallback_analysis(content, content_type)
 
 def fallback_analysis(content, content_type):
-    """
-    Provides fallback general advice if AI analysis fails.
-    """
     st.warning("Using fallback analysis due to API issues.")
     if content_type == "image":
         return """
@@ -186,10 +241,22 @@ Fallback Analysis:
   - Actions: Consult a healthcare professional and consider regular exercise (30 min/day).
 """
 
+def extract_text_from_pdf(pdf_file):
+    try:
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        text = ""
+        for page in pdf_reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+        if not text.strip():
+            st.warning("No text extracted from PDF. It may contain scanned images.")
+        return text
+    except Exception as e:
+        st.error(f"Error extracting text from PDF: {str(e)}")
+        return ""
+
 def generate_pdf_report(text):
-    """
-    Generates a downloadable PDF report from the AI analysis text.
-    """
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 16)
@@ -205,6 +272,7 @@ def generate_pdf_report(text):
     pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
+
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, "Summary of Medical Report", ln=True, align='L')
     pdf.ln(4)
@@ -212,6 +280,7 @@ def generate_pdf_report(text):
     pdf.set_line_width(0.5)
     pdf.line(10, pdf.get_y(), pdf.w - 10, pdf.get_y())
     pdf.ln(6)
+
     pdf.set_font("Arial", size=12)
     cleaned_text = text.replace('\u200b', '').strip()
     paragraphs = cleaned_text.split('\n')
@@ -220,6 +289,7 @@ def generate_pdf_report(text):
         if para:
             pdf.multi_cell(0, 10, f"    {para}")
             pdf.ln(2)
+
     pdf.ln(5)
     pdf.set_font("Arial", 'I', 10)
     import datetime
@@ -232,10 +302,8 @@ def generate_pdf_report(text):
     return pdf_buffer
 
 def display_results_table(text):
-    """
-    Parses test results and displays them in a Streamlit dataframe.
-    """
     test_results = parse_medical_report(text)
+
     if not test_results:
         st.warning("No test results were parsed from the report.")
         return []
@@ -254,15 +322,13 @@ def display_results_table(text):
     df = pd.DataFrame(table_data)
     st.subheader("📊 Extracted Test Results")
     st.dataframe(df, use_container_width=True)
+
     return test_results
 
 def display_explanations(test_results, model):
-    """
-    For each test, display AI-generated explanations in expanders.
-    """
     st.subheader("🧠 Explanations by AI")
     for result in test_results:
-        with st.expander(f"{result['test_name']} Explanation"):
+        with st.expander(f"Explain {result['test_name']}"):
             explanation = generate_explanation_for_test(
                 model,
                 result['test_name'],
@@ -272,72 +338,62 @@ def display_explanations(test_results, model):
             )
             st.write(explanation)
 
-# -----------------------
-# Load environment and initialize Google Gemini AI
-load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# -------- Main App --------
 
-model = genai.Models.get("gemini-1")
+st.title("💉 Medical Lab Report Analysis & Personalized Recommendations")
 
-# -----------------------
-# Streamlit UI
+uploaded_file = st.file_uploader(
+    "Upload your medical report (PDF, Image, or Text file)",
+    type=["pdf", "png", "jpg", "jpeg", "txt"]
+)
 
-st.title("🧬 Medical Report Analyzer with AI Assistance")
+if uploaded_file:
+    file_type = uploaded_file.type
+    content_type = None
+    report_text = ""
 
-# Upload file or paste text
-input_option = st.radio("Select input type:", ("Upload medical report (PDF/Image)", "Paste report text"))
+    if file_type == "application/pdf":
+        content_type = "pdf"
+        report_text = extract_text_from_pdf(uploaded_file)
+        if not report_text.strip():
+            st.warning("No text extracted from PDF. Try uploading an image or text file.")
+    elif file_type.startswith("image/"):
+        content_type = "image"
+        # Save the uploaded image temporarily
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(uploaded_file.read())
+            tmp_path = tmp.name
 
-if input_option == "Upload medical report (PDF/Image)":
-    uploaded_file = st.file_uploader("Upload a PDF or image file", type=['pdf', 'png', 'jpg', 'jpeg'])
-    if uploaded_file:
-        # Display preview
-        if uploaded_file.type.startswith("image"):
-            image = Image.open(uploaded_file)
-            st.image(image, caption="Uploaded Image", use_column_width=True)
-            preprocessed_image = preprocess_image(uploaded_file)
-            # OCR extraction (placeholder)
-            extracted_text = extract_text_from_image(preprocessed_image)
-            st.markdown("### Extracted Text from Image")
-            st.text_area("Extracted Text:", extracted_text, height=200)
-            input_text = extracted_text
-            content_type = "image"
-        elif uploaded_file.type == "application/pdf":
-            extracted_text = extract_text_from_pdf(uploaded_file)
-            if extracted_text.strip():
-                st.markdown("### Extracted Text from PDF")
-                st.text_area("Extracted Text:", extracted_text, height=200)
-                input_text = extracted_text
-                content_type = "pdf"
-            else:
-                st.error("Could not extract text from the PDF file.")
-                input_text = None
-                content_type = None
-        else:
-            st.error("Unsupported file type.")
-            input_text = None
-            content_type = None
+        image = preprocess_image(tmp_path)
+        st.image(image, caption="Uploaded Image", use_column_width=True)
+        report_text = extract_text_from_image(image)
+        os.remove(tmp_path)
+    elif file_type == "text/plain":
+        content_type = "text"
+        report_text = uploaded_file.read().decode("utf-8")
+        st.text_area("Medical Report Text", value=report_text, height=250)
+    else:
+        st.error("Unsupported file type. Please upload PDF, Image, or Text file.")
 
-elif input_option == "Paste report text":
-    input_text = st.text_area("Paste your medical report text here:", height=300)
-    content_type = "text" if input_text else None
+    if report_text.strip():
+        analysis_text = analyze_medical_report(report_text, content_type)
+        st.subheader("📝 AI-Generated Analysis & Recommendations")
+        st.write(analysis_text)
 
-if input_text and content_type:
-    if st.button("Analyze Medical Report"):
-        with st.spinner("Analyzing report, please wait..."):
-            ai_analysis = analyze_medical_report(input_text, content_type)
-        st.markdown("## 📝 AI Analysis Result")
-        st.write(ai_analysis)
-
-        # Show test results in table and explanations if text content
-        test_results = display_results_table(input_text)
+        # Display extracted table + explanations
+        test_results = display_results_table(report_text)
         if test_results:
             display_explanations(test_results, model)
 
-        # Offer PDF download of AI analysis
-        pdf_buffer = generate_pdf_report(ai_analysis)
+        # Offer PDF download
+        pdf_buffer = generate_pdf_report(analysis_text)
         st.download_button(
-            label="Download AI Analysis as PDF",
+            label="📥 Download AI Analysis as PDF",
             data=pdf_buffer,
             file_name="medical_report_analysis.pdf",
             mime="application/pdf"
         )
+
+else:
+    st.info("Please upload a medical report to get started.")
+
